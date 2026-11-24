@@ -43,6 +43,39 @@ bool Cnf_extractor::findOption(char ** start, char ** end, const string & marker
     return found;
 }
 
+// true if the bare flag (e.g. "--grid") appears on the command line
+static bool hasFlag(char ** start, char ** end, const string & flag) {
+    return find(start, end, flag) != end;
+}
+
+// Select the ALK expansion strategy.
+//   --grid          grid expansion (default)
+//   --hierarchical  hierarchical expansion
+// The legacy --grid=true / --grid=false forms are still accepted with their
+// original (inverted) meaning, so existing scripts keep working, but they are
+// deprecated: --grid=true selected the *hierarchical* strategy.
+static void parseStrategy(char ** start, char ** end,
+                          unordered_map<string, string> & options) {
+    bool want_grid = hasFlag(start, end, "--grid");
+    bool want_hier = hasFlag(start, end, "--hierarchical");
+
+    if (hasFlag(start, end, "--grid=true")) {
+        cerr << "c WARNING: --grid=true is deprecated and selects the hierarchical strategy; use --hierarchical instead" << endl;
+        want_hier = true;
+    }
+    if (hasFlag(start, end, "--grid=false")) {
+        cerr << "c WARNING: --grid=false is deprecated and selects the grid strategy; use --grid instead" << endl;
+        want_grid = true;
+    }
+
+    if (want_grid && want_hier) {
+        cerr << "c ERROR: conflicting strategy options; pass only one of --grid or --hierarchical" << endl;
+        exit(1);
+    }
+    if (want_hier) options["hierarchical"] = "true";
+    if (want_grid) options["hierarchical"] = "false";
+}
+
 int Cnf_extractor::parse_options (int argc, char ** argv) {
 
     commandLineParseOption(argv, argv+argc, "Direct_timeout");
@@ -72,7 +105,7 @@ int Cnf_extractor::parse_options (int argc, char ** argv) {
     
     findOption (argv, argv+argc, "Encoded_ALK");
     findOption (argv, argv+argc, "second_chance");
-    findOption (argv, argv+argc, "grid");
+    parseStrategy (argv, argv+argc, extractor_options);
 
     return 0;
 }

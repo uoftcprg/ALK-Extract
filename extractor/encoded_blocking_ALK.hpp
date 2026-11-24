@@ -221,7 +221,7 @@ class Encoded_ALK : public Extraction_engine {
             }
             else if (verification_type == 1) {
               // Only SAT-based verification
-              if (engine_options["grid"] == "true") {
+              if (engine_options["hierarchical"] == "true") {
                 res = solver->verify_with_sat(true, false);
               } else {
                 res = solver->verify_with_sat(false, true);
@@ -246,7 +246,7 @@ class Encoded_ALK : public Extraction_engine {
                 stats->testing_failures++;
               if (res) {
                 start_time = stats->get_elapsed_time();
-                if (engine_options["grid"] == "true") { // totalizer based SAT-verification
+                if (engine_options["hierarchical"] == "true") { // totalizer based SAT-verification
                   res = solver->verify_with_sat(true, false);
                 } else {
                   res = solver->verify_with_sat(false, true);
@@ -351,8 +351,8 @@ class Encoded_ALK : public Extraction_engine {
             return val1 < val2;
         }
 
-        bool grid_mode_enabled (int var) {
-          return engine_options["grid"] == "true";
+        bool hierarchical_mode_enabled (int var) {
+          return engine_options["hierarchical"] == "true";
         }
 
         // With -data_vars_upto N the split into data and auxiliary variables is
@@ -474,7 +474,7 @@ class Encoded_ALK : public Extraction_engine {
             // initial classifiaction of auxilairy and non-auxilairy/data variables
             if (data_vars_upto > 0)
               sort_vars_by_hint (aux_vars, var_type);
-            else if (engine_options["grid"] == "true") 
+            else if (engine_options["hierarchical"] == "true")
               hier_sort_vars_by_type (aux_vars, var_type);
             else
               grid_sort_vars_by_type (aux_vars, var_type);
@@ -506,7 +506,7 @@ class Encoded_ALK : public Extraction_engine {
               // perform expansion to obtain a candidate constraint
               // With a data-variable hint the candidate is simply the closure of
               // the auxiliary variable, whatever the encoding looks like.
-              if (grid_mode_enabled (var) && data_vars_upto == 0) {
+              if (hierarchical_mode_enabled (var) && data_vars_upto == 0) {
                 extract_totalizer (var);
               } else {
                auxiliary_closure_first (var, var_type);
@@ -546,8 +546,8 @@ class Encoded_ALK : public Extraction_engine {
                 validated = verify_constraint ();
               }
 
-              // mark auxiliary variables as seen if they were used during expansion. This happens internally in the grid expansion function
-              if (grid_mode_enabled (var) && data_vars_upto == 0 && !validated && !cache_hit) {
+              // mark auxiliary variables as seen if they were used during expansion. This happens internally in the hierarchical expansion function
+              if (hierarchical_mode_enabled (var) && data_vars_upto == 0 && !validated && !cache_hit) {
                 ;
               } else {
                 for (auto ev : encoding_variable_set) {

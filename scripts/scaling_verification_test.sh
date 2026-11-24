@@ -74,14 +74,14 @@ then
 fi
 
 # perform extraction
-total_arg="false"
-# if encoding in totalizer, kmtotalizer, or cardnetwrk
+strategy_flag="--grid"
+# if encoding in totalizer, kmtotalizer, or cardnetwrk, use the hierarchical strategy
 if [[ "$encoding" == "totalizer"  || "$encoding" == "kmtotalizer" || "$encoding" == "cardnetwrk" ]]; then
-    total_arg="true"
+    strategy_flag="--hierarchical"
 fi
 
 
-time timeout $timeout's' ./$Extractor --grid=$total_arg -verification_type $verification_type -ver_only_file $CONSTRAINT_VARS_FILE $CNF_FILE > $TMP/out.log
+time timeout $timeout's' ./$Extractor $strategy_flag -verification_type $verification_type -ver_only_file $CONSTRAINT_VARS_FILE $CNF_FILE > $TMP/out.log
 
 FOUND=$(grep "c k" "$TMP/out.log")
 # check that the consrtaint without leading 'c ' appears in the KNF file

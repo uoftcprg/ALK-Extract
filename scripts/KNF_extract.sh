@@ -28,16 +28,16 @@ INFORM_BASE=$(basename -- "$INFORM" .cnf)
 OUTPUT_DIR=$3
 GUESSING_TYPE=$2
 ple=1
-totalizer_arg="false"
+strategy_flag="--grid"
 write_knf=1
 verification_type=3
 
 if [ $GUESSING_TYPE == "grid" ]
 then
-  totalizer_arg="false"
+  strategy_flag="--grid"
 elif [ $GUESSING_TYPE == "hier" ]
 then
-  totalizer_arg="true"
+  strategy_flag="--hierarchical"
 else 
   echo "Invalid guessing type: $GUESSING_TYPE. Must be 'grid' or 'hier'."
   exit 1
@@ -67,7 +67,7 @@ fi
 
 write_knf_arg=$OUTPUT_KNF
 
-timeout "${TIMEOUT}s" ./$Extractor -Write_KNF "$write_knf_arg" --grid="$totalizer_arg" -verification_type "$verification_type" "$INPUT_CNF" &
+timeout "${TIMEOUT}s" ./$Extractor -Write_KNF "$write_knf_arg" "$strategy_flag" -verification_type "$verification_type" "$INPUT_CNF" &
 CHILD_PID=$!
 wait "$CHILD_PID"
 status=$?

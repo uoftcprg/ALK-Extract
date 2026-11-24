@@ -262,7 +262,8 @@ class Cnf_extractor {
             extractor_options["BDD_ordering_file"] = "0";
             extractor_options["aux_var_file"] = "0";
             extractor_options["second_chance"] = "false";
-            extractor_options["grid"] = "false";
+            // ALK expansion strategy: "false" = grid expansion (default), "true" = hierarchical
+            extractor_options["hierarchical"] = "false";
 
             extractor_options["ver_only_file"] = "false";
 

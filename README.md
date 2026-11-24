@@ -28,12 +28,15 @@ Default extraction uses ALK extraction with the **grid expansion** strategy, the
 
 | Option | Description |
 |---|---|
-| `--grid=true` | Use hierarchical strategy |
+| `--grid` *(default)* | Use grid expansion strategy |
+| `--hierarchical` | Use hierarchical strategy |
 | `-verification_type 0` | Random-testing prefilter |
 | `-verification_type 1` | SAT-based verification |
 | `-verification_type 2` | BDD-based verification |
 | `-verification_type 3` *(default)* | Random-testing prefilter + SAT-based verification |
 | `-Write_KNF <output.knf>` | write extracted KNF formula |
+
+The older `--grid=true` / `--grid=false` forms are still accepted but deprecated (and inverted: `--grid=true` meant hierarchical). Use `--grid` or `--hierarchical` instead.
 
 ---
 
