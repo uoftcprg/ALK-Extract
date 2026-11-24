@@ -1,6 +1,8 @@
 #ifndef ENCODED_BLOCKING_ALK_HPP
 #define ENCODED_BLOCKING_ALK_HPP
 
+#include <climits>
+
 #include "cnf2knf.hpp"
 
 
@@ -71,6 +73,9 @@ class Encoded_ALK : public Extraction_engine {
 
         int verification_type;
 
+        int min_data_vars;   // verify a candidate only if it has more data variables than this
+        int data_vars_upto;  // > 0: variables 1..N are data variables, larger ids are auxiliary
+
         unordered_map<string, string> engine_options;
 
         using Extraction_engine::Extraction_engine;
@@ -85,6 +90,10 @@ class Encoded_ALK : public Extraction_engine {
             large_clause_size_cutoff = 4;
             verification_type = stoi (engine_options["verification_type"]); // 0 sim, 1 sat, 2 BDD, 3 sim to sat
             this->engine_options = engine_options;
+            min_data_vars = 10;
+            data_vars_upto = 0;
+            if (this->engine_options.count ("min_data_vars")) min_data_vars = stoi (this->engine_options["min_data_vars"]);
+            if (this->engine_options.count ("data_vars_upto")) data_vars_upto = stoi (this->engine_options["data_vars_upto"]);
         }
 
         void init_solver () {
@@ -111,6 +120,21 @@ class Encoded_ALK : public Extraction_engine {
             int var_phase = 0;
             bool mixed_phase = false;
             int lowest_clause_id = INT_MAX;
+
+            // One-sided encodings mention each data variable in a single
+            // polarity. If that is the case here the phase is known for sure;
+            // the binary-clause guess below misses variables whose encoding
+            // clauses are all ternary (e.g. the middle inputs of a small
+            // sequential counter) and would give them the wrong sign.
+            bool occurs_pos = false, occurs_neg = false;
+            for (auto cls_id : lit2clss_occurence_map[abs(var)])
+              if (clause_ids_set.count(cls_id)) { occurs_pos = true; break; }
+            for (auto cls_id : lit2clss_occurence_map[-abs(var)])
+              if (clause_ids_set.count(cls_id)) { occurs_neg = true; break; }
+            if (occurs_pos != occurs_neg) {
+              var = (occurs_pos ? 1 : -1) * abs(var);
+              continue;
+            }
             for (int pol : {-1,1}) {
               for (auto cls_id : lit2clss_occurence_map[var*pol]) {
                 if (clause_ids_set.count(cls_id) && cnf_extractor->clauses[cls_id].get_size() == 2) {
@@ -331,6 +355,20 @@ class Encoded_ALK : public Extraction_engine {
           return engine_options["grid"] == "true";
         }
 
+        // With -data_vars_upto N the split into data and auxiliary variables is
+        // given, so the blocking-set heuristics are not needed: every variable
+        // above N is a candidate auxiliary, everything else is data (type 1).
+        void sort_vars_by_hint (vector<int> &aux_vars, vector<int> &var_type) {
+          for (int var = 1; var <= cnf_extractor->nvars; var++) {
+            if (var <= data_vars_upto) {
+              var_type[var] = 1;
+            } else {
+              var_type[var] = 2;
+              aux_vars.push_back(var);
+            }
+          }
+        }
+
         // *******************************************
         // Functions for only verification, no extraction. Used for scaling tests
         void get_touched_clauses () {
@@ -434,7 +472,9 @@ class Encoded_ALK : public Extraction_engine {
             get_var_blocking_set_info();
 
             // initial classifiaction of auxilairy and non-auxilairy/data variables
-            if (engine_options["grid"] == "true") 
+            if (data_vars_upto > 0)
+              sort_vars_by_hint (aux_vars, var_type);
+            else if (engine_options["grid"] == "true") 
               hier_sort_vars_by_type (aux_vars, var_type);
             else
               grid_sort_vars_by_type (aux_vars, var_type);
@@ -464,7 +504,9 @@ class Encoded_ALK : public Extraction_engine {
               init_solver();
               
               // perform expansion to obtain a candidate constraint
-              if (grid_mode_enabled (var)) {
+              // With a data-variable hint the candidate is simply the closure of
+              // the auxiliary variable, whatever the encoding looks like.
+              if (grid_mode_enabled (var) && data_vars_upto == 0) {
                 extract_totalizer (var);
               } else {
                auxiliary_closure_first (var, var_type);
@@ -500,12 +542,12 @@ class Encoded_ALK : public Extraction_engine {
               }
 
               // verify constraint if no cache hit and at least 10 data variables.
-              if (!validated && !cache_hit && problem_variable_set.size() > 10) {
+              if (!validated && !cache_hit && (int) problem_variable_set.size() > min_data_vars) {
                 validated = verify_constraint ();
               }
 
               // mark auxiliary variables as seen if they were used during expansion. This happens internally in the grid expansion function
-              if (grid_mode_enabled (var) && !validated && !cache_hit) {
+              if (grid_mode_enabled (var) && data_vars_upto == 0 && !validated && !cache_hit) {
                 ;
               } else {
                 for (auto ev : encoding_variable_set) {
@@ -882,7 +924,9 @@ class Encoded_ALK : public Extraction_engine {
 
       set<int> cuttoff_vars;
 
-      auxiliary_closure ( 1, encoding_variable_set, problem_variable_set, clause_ids_set, set<int>(), 5, cuttoff_vars);
+      // without a hint, clauses wider than 5 literals are not expanded through
+      int clause_cutoff = (data_vars_upto > 0) ? INT_MAX : 5;
+      auxiliary_closure ( 1, encoding_variable_set, problem_variable_set, clause_ids_set, set<int>(), clause_cutoff, cuttoff_vars);
     }
 
     

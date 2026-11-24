@@ -195,9 +195,12 @@ void print_help () {
     cout << "-Engine_logging <int>         (default 0)" << endl;
     cout << "-Write_KNF <file>           (default false)" << endl;
     cout << "-verification_type <int>     (default 3, 0 sim, 1 sat, 2 BDD, 3 sim to sat)" << endl;
+    cout << "-min_data_vars <int>         (default 10; verify candidates with more data variables than this)" << endl;
+    cout << "-data_vars_upto <int>        (default 0 = off; variables 1..N are problem variables, the rest may be auxiliary)" << endl;
     cout << "****" << endl;
     cout << " Options set to true or false (--option=true OR --option=false)" << endl;
     cout << "--totalizer_encoding <bool>           (default false)" << endl;
+    cout << "--Direct_AMO=true                     (also lift pairwise at-most-one cliques; default off with ALK)" << endl;
     
 }
 
@@ -456,7 +459,9 @@ int run_extraction_engines (Cnf_extractor * cnf_extractor) {
     }
 
     if (extractor_options["Encoded_ALK"] == "true") {
-      extractor_options["Direct_AMO"] = "false";
+      // the pairwise-AMO engine stays on when it was asked for explicitly
+      if (extractor_options["Direct_AMO_explicit"] != "true")
+        extractor_options["Direct_AMO"] = "false";
       extractor_options["Encoded_AMO"] = "false";
       extractor_options["Encoded_Others"] = "false";
     }
@@ -468,6 +473,8 @@ int run_extraction_engines (Cnf_extractor * cnf_extractor) {
         engine_options["second_chance"] = extractor_options["second_chance"];
         engine_options["grid"] = extractor_options["grid"];
         engine_options["ver_only_file"] = extractor_options["ver_only_file"];
+        engine_options["min_data_vars"] = extractor_options["min_data_vars"];
+        engine_options["data_vars_upto"] = extractor_options["data_vars_upto"];
 
         encoded_ALK = new Encoded_ALK (cnf_extractor,logging);
         extraction_engines[3] = encoded_ALK;

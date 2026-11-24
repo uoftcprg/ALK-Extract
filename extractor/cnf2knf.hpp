@@ -266,6 +266,13 @@ class Cnf_extractor {
 
             extractor_options["ver_only_file"] = "false";
 
+            // candidates are verified only if they have more than this many data variables
+            extractor_options["min_data_vars"] = "10";
+            // hint: variables 1..N are problem (data) variables, all others may be auxiliary (0 = off)
+            extractor_options["data_vars_upto"] = "0";
+            // set when --Direct_AMO=true is given on the command line
+            extractor_options["Direct_AMO_explicit"] = "false";
+
             constraint_cache = new Constraint_cache();
             
             }

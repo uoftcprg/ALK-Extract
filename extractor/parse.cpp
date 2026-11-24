@@ -61,7 +61,11 @@ int Cnf_extractor::parse_options (int argc, char ** argv) {
 
     commandLineParseOption (argv, argv+argc, "ver_only_file");
 
-    findOption (argv, argv+argc, "Direct_AMO");
+    commandLineParseOption (argv, argv+argc, "min_data_vars");
+    commandLineParseOption (argv, argv+argc, "data_vars_upto");
+
+    if (findOption (argv, argv+argc, "Direct_AMO") && extractor_options["Direct_AMO"] == "true")
+        extractor_options["Direct_AMO_explicit"] = "true";
     findOption (argv, argv+argc, "Direct_AMO_Small");
     findOption (argv, argv+argc, "Encoded_AMO");
     findOption (argv, argv+argc, "Encoded_Others");
