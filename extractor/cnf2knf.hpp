@@ -268,11 +268,32 @@ class Cnf_extractor {
             extractor_options["ver_only_file"] = "false";
 
             // candidates are verified only if they have more than this many data variables
+            // (--plusplus makes it 2: with fewer than three literals a cardinality
+            // constraint is a clause or a pair of units)
             extractor_options["min_data_vars"] = "10";
             // hint: variables 1..N are problem (data) variables, all others may be auxiliary (0 = off)
             extractor_options["data_vars_upto"] = "0";
             // set when --Direct_AMO=true is given on the command line
             extractor_options["Direct_AMO_explicit"] = "false";
+
+            // the semantic engine (semantic_ALK.hpp) runs after the encoded-ALK engine.
+            // Off unless --Semantic=true or --plusplus is given
+            extractor_options["Semantic"] = "false";
+            extractor_options["Semantic_timeout"] = "60";
+            extractor_options["semantic_cut"] = "true";
+            extractor_options["semantic_prop"] = "true";
+            extractor_options["semantic_direct_bound"] = "2";
+            extractor_options["semantic_min_data_vars"] = "2";
+            extractor_options["semantic_max_bound"] = "3";
+            extractor_options["semantic_big_clause"] = "4";
+            extractor_options["semantic_exhaustive"] = "20000";
+            extractor_options["semantic_samples"] = "500";
+            extractor_options["semantic_conflicts"] = "20000";
+            extractor_options["semantic_pool"] = "1000";
+            extractor_options["semantic_subsets"] = "4000";
+            extractor_options["semantic_probes_per_clause"] = "2000";
+            extractor_options["semantic_upper_conflicts"] = "2000000";
+            extractor_options["semantic_extend_conflicts"] = "1000";
 
             constraint_cache = new Constraint_cache();
             

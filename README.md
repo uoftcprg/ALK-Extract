@@ -30,6 +30,7 @@ Default extraction uses ALK extraction with the **grid expansion** strategy, the
 |---|---|
 | `--grid` *(default)* | Use grid expansion strategy |
 | `--hierarchical` | Use hierarchical strategy |
+| `--plusplus` | All extensions at once: constraints from three variables on and the semantic engine |
 | `-verification_type 0` | Random-testing prefilter |
 | `-verification_type 1` | SAT-based verification |
 | `-verification_type 2` | BDD-based verification |
@@ -37,6 +38,8 @@ Default extraction uses ALK extraction with the **grid expansion** strategy, the
 | `-Write_KNF <output.knf>` | write extracted KNF formula |
 
 The older `--grid=true` / `--grid=false` forms are still accepted but deprecated (and inverted: `--grid=true` meant hierarchical). Use `--grid` or `--hierarchical` instead.
+
+`--plusplus` changes two defaults and nothing else: candidates are verified from three data variables on (`-min_data_vars 2`, default 10), and a second engine runs after the encoded-ALK engine on the clauses that are left (`--Semantic=true`, default false). An option that is given explicitly wins, so `--plusplus --Semantic=false` is the smaller threshold alone. Without `--plusplus` the extractor does what it did before the second engine was added.
 
 ---
 

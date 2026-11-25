@@ -78,6 +78,13 @@ static void parseStrategy(char ** start, char ** end,
 
 int Cnf_extractor::parse_options (int argc, char ** argv) {
 
+    // --plusplus: all extensions at once. It changes defaults only, and it is read first,
+    // so an option that is given explicitly wins, wherever it stands on the command line.
+    if (hasFlag (argv, argv+argc, "--plusplus")) {
+        extractor_options["min_data_vars"] = "2";
+        extractor_options["Semantic"] = "true";
+    }
+
     commandLineParseOption(argv, argv+argc, "Direct_timeout");
     commandLineParseOption(argv, argv+argc, "Encoded_timeout");
     commandLineParseOption(argv, argv+argc, "Encoded_ALK_timeout");
@@ -103,6 +110,15 @@ int Cnf_extractor::parse_options (int argc, char ** argv) {
     findOption (argv, argv+argc, "Encoded_AMO");
     findOption (argv, argv+argc, "Encoded_Others");
     
+    for (const char * name : {"Semantic_timeout", "semantic_min_data_vars", "semantic_max_bound", "semantic_big_clause",
+                              "semantic_exhaustive", "semantic_samples", "semantic_conflicts", "semantic_pool",
+                              "semantic_subsets", "semantic_probes_per_clause", "semantic_upper_conflicts",
+                              "semantic_direct_bound", "semantic_extend_conflicts"})
+        commandLineParseOption (argv, argv+argc, name);
+    findOption (argv, argv+argc, "Semantic");
+    findOption (argv, argv+argc, "semantic_cut");
+    findOption (argv, argv+argc, "semantic_prop");
+
     findOption (argv, argv+argc, "Encoded_ALK");
     findOption (argv, argv+argc, "second_chance");
     parseStrategy (argv, argv+argc, extractor_options);

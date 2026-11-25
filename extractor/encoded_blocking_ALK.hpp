@@ -90,7 +90,7 @@ class Encoded_ALK : public Extraction_engine {
             large_clause_size_cutoff = 4;
             verification_type = stoi (engine_options["verification_type"]); // 0 sim, 1 sat, 2 BDD, 3 sim to sat
             this->engine_options = engine_options;
-            min_data_vars = 10;
+            min_data_vars = 2;
             data_vars_upto = 0;
             if (this->engine_options.count ("min_data_vars")) min_data_vars = stoi (this->engine_options["min_data_vars"]);
             if (this->engine_options.count ("data_vars_upto")) data_vars_upto = stoi (this->engine_options["data_vars_upto"]);
@@ -157,8 +157,11 @@ class Encoded_ALK : public Extraction_engine {
           }
         }
 
+        bool passed_testing;   // of the last verification (type 3)
+
         // random-testing prefilter, SAT-based and BDD-based verification
         bool verify_constraint_int (SatSolver *solver) {
+          passed_testing = false;
           // add new_clause_ids to solver for random-testing or SAT-based verification
           for (auto id : new_clause_ids_set) {
             solver->add_clause(cnf_extractor->clauses[id].literals);
@@ -238,6 +241,7 @@ class Encoded_ALK : public Extraction_engine {
             } else if (verification_type == 3) {
               // Random-testing prefilter followed by SAT-based verification if it passes the prefilter
               res = solver->random_testing_prefilter();
+              passed_testing = res;
               double end_time = stats->get_elapsed_time();
               stats->testing_time += (end_time - start_time);
               if (res) 
@@ -280,6 +284,27 @@ class Encoded_ALK : public Extraction_engine {
           }
           
           return res;
+        }
+
+        // one line per candidate with -Engine_logging 1 or more: what the
+        // expansion from `seed` collected and what became of it
+        void log_candidate (int seed, const string &verdict) {
+          if (logging < 1) return;
+          string s = "CAND seed " + to_string (seed) + " verdict " + verdict
+            + " ndata " + to_string (problem_variable_set.size ())
+            + " nenc " + to_string (encoding_variable_set.size ())
+            + " ncls " + to_string (clause_ids_set.size ()) + " data";
+          for (auto v : problem_variable_set) s += " " + to_string (v);
+          cout << "c " << s << endl;
+        }
+
+        // why the last verification failed: trivial bound, random testing, SAT
+        string verify_fail_reason (SatSolver *solver, bool passed_testing) {
+          int n = solver->data_vars.size ();
+          int b = solver->bound;
+          if (b <= 0 || b >= n || (b == 1 && solver->ALK) || (b == n - 1 && !solver->ALK))
+            return "fail-trivial";
+          return passed_testing ? "fail-sat" : "fail-testing";
         }
 
         bool verify_constraint () {
@@ -542,9 +567,12 @@ class Encoded_ALK : public Extraction_engine {
               }
 
               // verify constraint if no cache hit and at least 10 data variables.
+              string verdict = cache_hit ? (validated ? "cache-ok" : "cache-fail") : "small";
               if (!validated && !cache_hit && (int) problem_variable_set.size() > min_data_vars) {
                 validated = verify_constraint ();
+                verdict = validated ? "ok" : verify_fail_reason (sat_solver, passed_testing);
               }
+              log_candidate (var, verdict);
 
               // mark auxiliary variables as seen if they were used during expansion. This happens internally in the hierarchical expansion function
               if (hierarchical_mode_enabled (var) && data_vars_upto == 0 && !validated && !cache_hit) {

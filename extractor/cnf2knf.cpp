@@ -2,6 +2,7 @@
 #include "direct_AMO.hpp"
 #include "encoded_AMO.hpp"
 #include "encoded_blocking_ALK.hpp"
+#include "semantic_ALK.hpp"
 #include <string>
 #include <algorithm>
 #include <sstream>
@@ -195,14 +196,30 @@ void print_help () {
     cout << "-Engine_logging <int>         (default 0)" << endl;
     cout << "-Write_KNF <file>           (default false)" << endl;
     cout << "-verification_type <int>     (default 3, 0 sim, 1 sat, 2 BDD, 3 sim to sat)" << endl;
-    cout << "-min_data_vars <int>         (default 10; verify candidates with more data variables than this)" << endl;
+    cout << "-min_data_vars <int>         (default 10, with --plusplus 2; verify candidates with more data variables than this)" << endl;
     cout << "-data_vars_upto <int>        (default 0 = off; variables 1..N are problem variables, the rest may be auxiliary)" << endl;
+    cout << "-Semantic_timeout <float>         (default 60s; the semantic engine; a bound above 1 gets a quarter of it)" << endl;
+    cout << "-semantic_min_data_vars <int>     (default 2; a semantic constraint has more literals than this)" << endl;
+    cout << "-semantic_max_bound <int>         (default 3; largest bound that propagation proposes)" << endl;
+    cout << "-semantic_big_clause <int>        (default 4; variables of longer clauses are problem variables)" << endl;
+    cout << "-semantic_exhaustive <int>        (default 20000; assignments at the bound that are all checked)" << endl;
+    cout << "-semantic_samples <int>           (default 500; random ones beyond that)" << endl;
+    cout << "-semantic_conflicts <int>         (default 20000; conflict limit of a SAT call of the semantic engine)" << endl;
+    cout << "-semantic_upper_conflicts <int>   (default 2000000; the same for the call that proves the bound)" << endl;
+    cout << "-semantic_direct_bound <int>      (default 2; constraints without auxiliary variables are replaced from this" << endl;
+    cout << "                                   bound on: 1 also lifts cliques of binary clauses, 1000 lifts none)" << endl;
     cout << "****" << endl;
     cout << " ALK expansion strategy (pick one):" << endl;
     cout << "--grid                                (grid expansion; default)" << endl;
     cout << "--hierarchical                        (hierarchical expansion)" << endl;
     cout << "****" << endl;
+    cout << " All extensions at once (it changes defaults only: an option that is given explicitly wins):" << endl;
+    cout << "--plusplus                            (-min_data_vars 2 and --Semantic=true)" << endl;
+    cout << "****" << endl;
     cout << " Options set to true or false (--option=true OR --option=false)" << endl;
+    cout << "--Semantic=true                       (run the semantic engine after the encoded-ALK engine; default false, with --plusplus true)" << endl;
+    cout << "--semantic_cut=false                  (semantic engine without the cut stage)" << endl;
+    cout << "--semantic_prop=false                 (semantic engine without the propagation stage)" << endl;
     cout << "--Direct_AMO=true                     (also lift pairwise at-most-one cliques; default off with ALK)" << endl;
     
 }
@@ -255,12 +272,14 @@ void Cnf_extractor::write_knf_formula () {
 void process_stats (Cnf_extractor * cnf_extractor, vector<Extraction_engine*> extraction_engines) {
     
 
-    assert (extraction_engines.size() == 4);
+    // called with an empty list when a signal arrives before the engines exist
+    if (extraction_engines.size() < 5) extraction_engines.resize (5, NULL);
 
     Direct_AMO *d_AMO = (Direct_AMO *) extraction_engines[0];
     Encoded_AMO *e_AMO = (Encoded_AMO *) extraction_engines[1];
     Encoded_AMO *e_other = (Encoded_AMO *) extraction_engines[2];
     Encoded_ALK *e_ALK = (Encoded_ALK *) extraction_engines[3];
+    Semantic_ALK *e_sem = (Semantic_ALK *) extraction_engines[4];
 
     int total_constraints = 0;
     for (auto clause : cnf_extractor->clauses) {
@@ -413,6 +432,32 @@ void process_stats (Cnf_extractor * cnf_extractor, vector<Extraction_engine*> ex
         cout << "c BDD failures " << stats->bdd_failures << endl;
     }
 
+    if (e_sem != NULL && e_sem->stats != NULL) {
+        Stats * stats = e_sem->stats;
+        total_card_constraints += stats->nconstraints;
+        cout << "c Semantic constraints: " << stats->nconstraints << endl;
+        if (stats->nconstraints > 0) {
+            string temp_s = "";
+            vector<tuple<int,int,int>> sizes;
+            for (auto it = stats->ALK_constraint_sizes.begin(); it != stats->ALK_constraint_sizes.end(); it++)
+                sizes.push_back (tuple<int,int,int>{get<0>(it->first),get<1>(it->first),it->second});
+            sort (sizes.begin(), sizes.end());
+            for (auto tp : sizes) temp_s +="(" + to_string (get<0>(tp)) + "," + to_string (get<1>(tp)) + "):" + to_string (get<2>(tp)) + " ";
+            cout << "c Semantic sizes: " << temp_s << endl;
+        }
+        cout << "c Semantic from cuts: " << e_sem->n_cut << endl;
+        cout << "c Semantic from propagation: " << e_sem->n_prop << endl;
+        cout << "c Semantic without auxiliary variables: " << e_sem->n_direct << endl;
+        cout << "c Semantic checked on every assignment at the bound: " << e_sem->n_all_checked << endl;
+        cout << "c Semantic checked on a sample of them: " << e_sem->n_sampled << endl;
+        cout << "c Semantic candidates: " << e_sem->n_candidates << endl;
+        cout << "c Semantic SAT calls: " << e_sem->n_sat_calls << endl;
+        cout << "c Semantic probes: " << e_sem->n_probes << endl;
+        cout << "c Semantic seconds: " << stats->get_final_time () << endl;
+        if (e_sem->reached_timeout) cout << "c Semantic reached timeout: " << e_sem->timeout << endl;
+        if (e_sem->stage_timeout) cout << "c Semantic propagation stage stopped at its share of the time" << endl;
+    }
+
     cout << "c Total seconds: " << cnf_extractor->stats.get_final_time () 
     << endl;
 
@@ -439,10 +484,12 @@ int run_extraction_engines (Cnf_extractor * cnf_extractor) {
     Encoded_AMO *encoded_AMO = NULL;
     Encoded_AMO *encoded_Others = NULL;
     Encoded_ALK *encoded_ALK = NULL;
+    Semantic_ALK *semantic_ALK = NULL;
     extraction_engines.push_back (direct_AMO);
     extraction_engines.push_back (encoded_AMO);
     extraction_engines.push_back (encoded_Others);
     extraction_engines.push_back (encoded_ALK);
+    extraction_engines.push_back (semantic_ALK);
     double direct_AMO_timeout, encoded_AMO_timeout, encoded_ALK_timeout;
     unordered_map<string, string> engine_options;
     unordered_map<string, string> extractor_options = cnf_extractor->extractor_options;
@@ -487,6 +534,19 @@ int run_extraction_engines (Cnf_extractor * cnf_extractor) {
         encoded_ALK->stats->set_end_time ();
 
         // encoded_ALK->clear_data ();  
+    }
+
+    // candidates from cuts at known problem variables and from unit propagation,
+    // each verified with a SAT solver before it replaces its clauses
+    if (extractor_options["Semantic"] == "true" && extractor_options["ver_only_file"] == "false") {
+        unordered_map<string, string> semantic_options;
+        for (auto &kv : extractor_options)
+            if (kv.first.compare (0, 9, "semantic_") == 0) semantic_options[kv.first] = kv.second;
+        semantic_ALK = new Semantic_ALK (cnf_extractor,logging);
+        extraction_engines[4] = semantic_ALK;
+        semantic_ALK->init (semantic_options);
+        semantic_ALK->run (stof (extractor_options["Semantic_timeout"]));
+        semantic_ALK->stats->set_end_time ();
     }
 
     if (extractor_options["Direct_AMO"] == "true") { 
@@ -541,6 +601,7 @@ int run_extraction_engines (Cnf_extractor * cnf_extractor) {
     delete (encoded_AMO);
     delete (encoded_Others);
     delete (encoded_ALK);
+    delete (semantic_ALK);
 
     // before returning/cleanup clear global pointer
     g_extraction_engines = nullptr;
